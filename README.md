@@ -62,14 +62,39 @@ CLERK_JWT_ISSUER_DOMAIN=<your Clerk Frontend API URL, e.g. https://your-app.cler
 CLERK_WEBHOOK_SECRET=<from Clerk webhook setup>
 ```
 
-### 5. Set up Clerk webhook
+### 5. Set up Resend (invite emails)
+
+1. Create a [Resend](https://resend.com) account (free tier: 100 emails/day)
+2. Go to **API Keys** in the Resend dashboard and create a new key
+3. Add the key to `.env.local`:
+
+```
+RESEND_API_KEY=<from Resend dashboard>
+```
+
+4. Also set it in the **Convex dashboard** (Settings > Environment Variables):
+
+```
+RESEND_API_KEY=<from Resend dashboard>
+```
+
+> **Note:** The Convex environment variable is required — Convex actions run server-side and read env vars from the deployment, not from `.env.local`.
+
+Optionally, you can also set these in the Convex dashboard to customize the sender and links in invite emails:
+
+```
+RESEND_FROM_EMAIL=DocVault <you@yourdomain.com>
+APP_URL=https://your-production-url.com
+```
+
+### 6. Set up Clerk webhook
 
 1. In Clerk dashboard, go to **Webhooks**
 2. Create an endpoint pointing to: `<your-convex-deployment-url>/clerk-webhook`
 3. Subscribe to events: `user.created`, `user.updated`, `user.deleted`
 4. Copy the **Signing Secret** and set it as `CLERK_WEBHOOK_SECRET` in Convex environment variables
 
-### 6. Run the app
+### 7. Run the app
 
 In two separate terminals:
 

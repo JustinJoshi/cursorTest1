@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { RoleBadge } from "@/components/role-badge";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, X, Mail, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 type Role = "admin" | "editor" | "viewer";
@@ -67,6 +67,9 @@ export function MemberManager({
   const addMember = useMutation(api.teams.addMember);
   const updateRole = useMutation(api.teams.updateMemberRole);
   const removeMember = useMutation(api.teams.removeMember);
+  const cancelInvite = useMutation(api.invites.cancel);
+
+  const pendingInvites = useQuery(api.invites.listPending, { teamId });
 
   const isAdmin = currentUserRole === "admin";
 
@@ -76,8 +79,12 @@ export function MemberManager({
 
     setIsAdding(true);
     try {
-      await addMember({ teamId, email: email.trim(), role });
-      toast.success("Member added successfully");
+      const result = await addMember({ teamId, email: email.trim(), role });
+      if (result === "invited") {
+        toast.success("Invite sent! They'll be added when they sign up.");
+      } else {
+        toast.success("Member added successfully");
+      }
       setEmail("");
       setRole("viewer");
     } catch (error) {
@@ -110,6 +117,17 @@ export function MemberManager({
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to remove member"
+      );
+    }
+  };
+
+  const handleCancelInvite = async (inviteId: Id<"invites">) => {
+    try {
+      await cancelInvite({ teamId, inviteId });
+      toast.success("Invite cancelled");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to cancel invite"
       );
     }
   };
@@ -259,6 +277,68 @@ export function MemberManager({
           </Table>
         </div>
       </div>
+
+      {isAdmin && pendingInvites && pendingInvites.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium mb-3">
+            Pending Invites ({pendingInvites.length})
+          </h3>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead className="text-right">Invited</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingInvites.map((invite) => (
+                  <TableRow key={invite._id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {invite.email}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Invited by {invite.invitedByName}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <RoleBadge role={invite.role} />
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {new Date(
+                        invite.createdAt
+                      ).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() =>
+                          handleCancelInvite(invite._id)
+                        }
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

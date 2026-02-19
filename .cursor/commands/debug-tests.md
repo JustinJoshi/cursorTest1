@@ -1,6 +1,6 @@
 ---
 name: debug-tests
-description: Debug Playwright failures with fresh Task workers, optional parallelism for independent failures, and --dry-run worker-plan preview.
+description: Debug Playwright failures with fresh Task workers, optional parallelism for independent failures, and --dry-run/--debug worker-plan visibility.
 ---
 
 # Debug Tests Orchestrator
@@ -13,6 +13,8 @@ Run a retry loop that fixes failing Playwright tests with fresh worker context.
 - `/debug-tests -in` -> interactive mode
 - `/debug-tests -auto` -> unattended mode
 - `/debug-tests --dry-run` -> configure + discover failures + show worker plan only
+- `/debug-tests --debug` -> execute with prompt/worker-trace logging
+- `/debug-tests --dry-run --debug` -> show worker plan + debug log paths only
 
 ## Core behavior and guarantees
 
@@ -48,6 +50,7 @@ Derived runtime values:
 - `MAX_RETRIES`
 - `WORKER_MODEL`
 - `STATE_FILE = .cursor/debug-session.json`
+- `DEBUG_MODE` (true if `--debug` is present)
 
 ## Phase 0 - Session bootstrap
 
@@ -110,7 +113,27 @@ Tasks:
    - fixSummary
    - filesChanged
    - why this fix should resolve the failure
+
+If debug mode is enabled:
+5) Write an execution trace to: [debugExecutionPath]
+6) Include:
+   - ## Received Context (exact worker prompt)
+   - ## Files Read
+   - ## Root Cause Analysis
+   - ## Fix Applied
+   - ## Validation Reasoning
+   - ## Final Output
 ```
+
+Debug paths per worker (when `--debug`):
+- `debugPromptPath`: `.cursor/debug-logs/[timestamp]-attempt-[N]-[failureSlug]-prompt.md`
+- `debugExecutionPath`: `.cursor/debug-logs/[timestamp]-attempt-[N]-[failureSlug]-execution.md`
+
+If `--debug` is present, orchestrator must:
+1. Ensure `.cursor/debug-logs/` exists.
+2. Resolve each worker prompt with concrete failure details.
+3. Write each resolved prompt to `[debugPromptPath]`.
+4. Print each resolved prompt in chat before worker launch.
 
 ## Phase 3 - Dry-run behavior
 
@@ -122,6 +145,7 @@ If `--dry-run` is present:
   - failures found
   - independent set and coupled set
   - which workers would run in parallel vs sequential
+  - debug prompt/execution paths per planned worker (when `--debug`)
 - End with:
   `No workers were launched. Remove --dry-run to execute.`
 
@@ -129,9 +153,10 @@ If `--dry-run` is present:
 
 If not dry-run:
 
-1. Spawn workers for independent failures in parallel batches (max 4 concurrent).
-2. Process coupled failures sequentially (one worker at a time).
-3. For each worker result, store fix summary in session history.
+1. If `--debug`, ensure `.cursor/debug-logs/` exists and write/print resolved prompts before each worker launch.
+2. Spawn workers for independent failures in parallel batches (max 4 concurrent).
+3. Process coupled failures sequentially (one worker at a time).
+4. For each worker result, store fix summary in session history.
 
 ## Phase 5 - Re-run + mode control
 
@@ -178,6 +203,7 @@ Print:
 - whether session ended by pass, max retries, no-progress guard, or user stop
 - worker execution shape (parallel groups vs sequential)
 - model tier used by workers
+- debug log paths produced (when `--debug`)
 
 Then delete `STATE_FILE` if the session is complete.
 

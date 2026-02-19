@@ -105,11 +105,11 @@ npm run dev:convex   # Convex backend
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## E2E Debug Command
+## Cursor Commands
 
-For automated Playwright failure debugging with retry loops, fresh worker context, interactive/auto modes, and resume support, see:
+For documentation on all `.cursor/commands/` -- audits, test generation, fix planning/execution, and debug loops -- see:
 
-- `README-debug-tests.md`
+- `README-commands.md`
 
 ## Project Structure
 

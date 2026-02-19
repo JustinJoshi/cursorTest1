@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/test-results.json
+/ai-review/
+e2e/.auth/
 
 # next.js
 /.next/
@@ -42,3 +47,6 @@ next-env.d.ts
 
 # convex
 convex/_generated/
+
+# clerk configuration (can include secrets)
+/.clerk/

@@ -112,7 +112,7 @@ export default function TeamSettingsPage({
         <CardContent>
           <MemberManager
             teamId={teamId as Id<"teams">}
-            members={members as any}
+            members={members}
             currentUserRole={team.role}
             teamCreatorId={team.createdBy}
           />

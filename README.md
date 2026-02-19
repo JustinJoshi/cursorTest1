@@ -105,6 +105,12 @@ npm run dev:convex   # Convex backend
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## E2E Debug Command
+
+For automated Playwright failure debugging with retry loops, fresh worker context, interactive/auto modes, and resume support, see:
+
+- `README-debug-tests.md`
+
 ## Project Structure
 
 ```

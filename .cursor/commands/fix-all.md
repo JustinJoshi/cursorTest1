@@ -1,172 +1,148 @@
 ---
 name: fix-all
-description: Execute all fixes from an audit report sequentially. After each commit, runs Playwright tests automatically. Rolls back that batch if tests fail and continues. Run /fix-plan first, then /generate-tests to have a test suite ready.
+description: Execute fix batches sequentially with fresh Task workers per batch, test-after-each-commit, rollback safety, and optional --dry-run preview.
 ---
 
-# Fix All — Sequential Execution with Playwright Verification
+# Fix All Orchestrator
 
-You are a careful engineer executing a pre-planned audit fix sequence. After every commit, you run the Playwright test suite. If tests pass, move to the next batch. If tests fail, attempt one auto-fix, then roll back that batch if still failing — and continue with the rest.
+You are an orchestrator for planned fix batches.
 
----
+Main context responsibilities:
+- read and sequence fix batches
+- spawn fresh worker per batch
+- commit and test after each batch
+- rollback failed batch when required
 
-## Prerequisites
+Do not implement batch code changes directly in the orchestrator context.
 
-Before starting, verify all of these:
+## Invocation
+
+- `/fix-all` -> configure + execute
+- `/fix-all --dry-run` -> configure + validate plan without running worker fixes
+
+## Input expectations
+
+- Run `/fix-plan` first.
+- Source fix batches from user-provided plan text or latest plan/report path.
+- If batch list is unavailable, stop and ask for it.
+
+## Phase 0 - Interactive configuration (AskQuestion)
+
+Ask:
+
+1. batches to execute:
+   - all
+   - selected subset
+2. worker model strategy:
+   - default for all
+   - fast for all
+   - custom per batch
+3. auto-fix mode on post-commit test failure:
+   - enabled (one worker attempt, then rollback if still failing)
+   - disabled (rollback immediately)
+
+If custom per batch is selected, ask one follow-up question per selected batch.
+
+## Phase 1 - Prerequisites
+
+Verify:
 
 ```bash
-# 1. Clean working tree
 git status
-
-# 2. Playwright is installed and tests exist
 ls e2e/
 npx playwright test --list
-
-# 3. Test user credentials are set
-cat .env.test
 ```
 
-If any check fails, stop and tell the user what's needed:
-- No e2e/ directory → run `/generate-tests` first
-- No .env.test → create test user in Clerk and add credentials
-- Dirty working tree → ask user to commit or stash first
+If checks fail, stop with actionable message.
 
----
+## Phase 2 - Baseline test gate
 
-## Execution Process
-
-### Phase 0 — Baseline check
-
-Run the full test suite once before touching any code:
+Run once before first batch:
 
 ```bash
 npx playwright test 2>&1
 ```
 
-If baseline tests are already failing, stop:
-```
-⚠️ Baseline tests failing before any fixes applied.
-Fix these first — otherwise test results during fix-all will be unreliable.
-Failing: [list them]
-```
+If baseline fails, stop. Do not execute batches.
 
-If baseline passes, note the pass count and continue.
+## Phase 3 - Dry-run behavior
 
-### Phase 1 — Create fix branch
+If `--dry-run` is present:
+
+- Do not create branch.
+- Do not spawn workers.
+- Do not commit/revert.
+- Print execution preview:
+  - selected batches in order
+  - per-batch model tier
+  - post-batch test step
+  - failure policy (auto-fix or immediate rollback)
+  - expected branch name: `audit-fixes/[date]`
+- End with:
+  `No workers were launched. Remove --dry-run to execute.`
+
+Note: baseline test and prerequisite checks may run in dry-run to validate readiness.
+
+## Phase 4 - Create execution branch
+
+If not dry-run:
 
 ```bash
 git checkout -b audit-fixes/$(date +%Y-%m-%d)
 ```
 
-### Phase 2 — Create shared files first
+## Phase 5 - Sequential batch execution with fresh workers
 
-If the fix plan identified new shared files (utilities, hooks, types), create and commit them first, then run tests to confirm nothing broke.
+For each selected batch, in order:
 
-### Phase 3 — Execute batches with test verification
+1. Spawn one fresh Task worker with the batch payload.
+2. Worker reads target file(s), applies only that batch's findings, and returns:
+   - files changed
+   - root cause/fix summary
+3. Orchestrator commits worker changes.
+4. Orchestrator runs full Playwright suite.
+5. If tests pass: continue.
+6. If tests fail:
+   - if auto-fix enabled: spawn one fresh auto-fix worker for this batch
+   - re-run tests
+   - if still failing: revert latest batch commit and mark batch skipped
+   - continue to next batch
 
-For each batch, repeat this loop:
+Worker prompt template:
 
-**Step 1 — Apply the fix**
-Read the current file, apply all findings in the batch simultaneously, output the complete updated file.
+```text
+You are a fix worker for one planned batch.
 
-**Step 2 — Commit**
-```bash
-git add [filepath]
-git commit -m "fix([scope]): [finding IDs] — [brief description]
+Batch:
+- id: [batch id]
+- target file(s): [paths]
+- findings: [ids and instructions]
+- model tier: [default|fast]
 
-Fixes:
-- [FINDING-ID]: [one line]
-
-Audit: audit-reports/AUDIT-[date].md"
+Rules:
+1) Apply only this batch.
+2) Do not touch unrelated files.
+3) Keep behavior scoped to finding instructions.
+4) Return:
+   - filesChanged
+   - fixSummary
+   - risksToRetest
 ```
 
-**Step 3 — Run tests**
-```bash
-npx playwright test 2>&1
-```
+## Phase 6 - Final summary
 
-**Step 4 — Evaluate**
+Print:
 
-If tests pass:
-```
-✅ Batch [N/total] — [filename] ([finding IDs]) — [X] tests passing
-```
-Move immediately to next batch.
+- total batches selected
+- applied batches
+- skipped/rolled back batches
+- final test status
+- skipped findings requiring manual follow-up
+- key git commands for review and merge
 
-If tests fail → go to **Auto-Fix Loop**.
+## Safety rules
 
----
-
-## Auto-Fix Loop
-
-### Attempt 1 — Diagnose and fix
-
-Read the Playwright error output. Read the failing test. Read the file you changed.
-
-Determine the cause:
-
-**Code regression** (fix broke something unintentionally):
-Fix the regression, amend the commit, re-run tests. If passing → continue.
-
-**Intentional behavior change** (fix correctly changed how something works, test needs updating):
-Update the test to match the new correct behavior, commit the test change separately, re-run tests. If passing → continue.
-
-### Attempt 2 — If still failing
-
-Roll back the fix commit:
-```bash
-git revert HEAD --no-edit
-```
-
-Output:
-```
-⚠️ Auto-fix failed. Rolled back batch [N]: [filename] ([finding IDs])
-
-What broke: [brief description]
-Why auto-fix didn't work: [reason]
-
-This finding needs manual attention:
-[paste original finding from audit report]
-
-Continuing with remaining batches...
-```
-
-Log it as skipped and move to the next batch. Never stop the entire run for one failure.
-
----
-
-## Phase 4 — Final summary
-
-```
-═══════════════════════════════════════════
-Fix run complete — audit-fixes/[date]
-
-Applied:  [N] batches ([N] files)
-Skipped:  [N] batches (rolled back)
-Tests:    [N] passing
-
-Skipped findings (need manual fixes):
-  - [FINDING-ID] in [file]: [why]
-
-To review all changes:   git diff main...HEAD
-To open test report:     npx playwright show-report
-To merge:                git checkout main && git merge audit-fixes/[date]
-To roll back everything: git checkout main && git branch -D audit-fixes/[date]
-═══════════════════════════════════════════
-```
-
----
-
-## Rules
-
-- Run tests after every single commit — no exceptions
-- Never stop the whole run for one batch failure — roll back that batch and continue
-- One auto-fix attempt only per batch
-- Never update test assertions just to force a pass — only update tests when behavior intentionally changed
-- Run only the affected spec file when debugging a single failure (faster):
-  ```bash
-  npx playwright test e2e/security.spec.ts 2>&1
-  ```
-
-## Recommended Model
-⚡ **Sonnet** for most batches
-🧠 **Opus** for PE-H1 (race condition) and PE-M4 (cascade delete) specifically
+- Tests after every batch commit; no exceptions.
+- Never stop entire run because one batch failed; skip and continue.
+- One auto-fix worker attempt max per failed batch when enabled.
+- Never force tests green with unrelated assertion changes.

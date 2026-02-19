@@ -1,109 +1,158 @@
 ---
 name: audit-all
-description: Run all 5 audit roles against the current file or entire project and produce a consolidated markdown report.
+description: Orchestrate selected audit roles with fresh Task sub-agents, configurable model tier, and optional --dry-run validation.
 ---
 
-# Full Audit — All 5 Roles
+# Full Audit Orchestrator
 
-You are orchestrating 5 specialized audit perspectives simultaneously. Run each of the following against the current file (or full project if no file is specified), then produce a **consolidated report**.
+You are an orchestrator. Your job is to configure, spawn, and merge audit workers.
 
-## The 5 Audit Roles
+Do not perform the role audits yourself in this main context.
 
-Work through each role in sequence:
+## Invocation
 
-### 1. Principal Engineer
-Architecture, code quality, React/Next.js patterns, tech debt. Check for God components, floating promises, incorrect hook dependencies, Server vs Client component misuse, magic numbers, dead code.
+- `/audit-all` -> interactive configuration + execution
+- `/audit-all --dry-run` -> interactive configuration + plan preview only (no worker launch)
 
-### 2. Security Auditor
-OWASP Top 10. Check for injection risks, hardcoded secrets, broken access control, insecure session handling, missing input validation, XSS vectors, exposed stack traces.
+## Role Sources
 
-### 3. DevOps Engineer
-Operational readiness. Check for missing error handling on external calls, no timeouts, unstructured logging, missing env var validation, no health check, database connection anti-patterns.
+Each worker must read exactly one role file:
 
-### 4. Accessibility Auditor
-WCAG 2.1 AA. Check for missing alt text, non-semantic interactive elements, missing ARIA labels, broken keyboard navigation, missing focus management, color-only state indicators.
+1. Principal Engineer -> `.cursor/commands/audit-principal.md`
+2. Security Auditor -> `.cursor/commands/audit-security.md`
+3. DevOps Engineer -> `.cursor/commands/audit-devops.md`
+4. Accessibility Auditor -> `.cursor/commands/audit-a11y.md`
+5. Patterns Auditor -> `.cursor/commands/audit-dry.md`
 
-### 5. Patterns Auditor
-DRY violations and abstraction opportunities. Check for duplicated logic, extractable custom hooks, repeated fetch patterns, scattered constants, reusable component opportunities.
+## Hard Rules
 
----
+- Use `AskQuestion` for all runtime choices.
+- Use `Task` tool sub-agents for all selected roles.
+- Max 4 concurrent Task workers at a time.
+- Never write inline audit comments into source files in this orchestrator flow.
+- Workers write findings to role-specific markdown reports only.
+- If you catch yourself writing audit findings directly, stop and switch back to orchestration.
 
-## Output
+## Phase 0 - Interactive configuration
 
-### In Chat — Executive Summary
-Print a summary table immediately in chat:
+Use `AskQuestion`:
 
-```
-## 🔍 Audit Summary — [filename or "Full Project"] — [timestamp]
+1. **Roles to run** (multi-select):
+   - all
+   - principal
+   - security
+   - devops
+   - a11y
+   - patterns
+2. **Model tier strategy**:
+   - recommended defaults (principal/security=default, others=fast)
+   - all default
+   - all fast
+   - custom per role
 
-| Role | 🔴 High | 🟡 Medium | 🔵 Low | Status |
-|------|---------|-----------|--------|--------|
-| Principal Engineer | 0 | 2 | 1 | ⚠️ |
-| Security | 1 | 0 | 1 | 🚨 |
-| DevOps | 0 | 1 | 2 | ⚠️ |
-| Accessibility | 2 | 1 | 0 | 🚨 |
-| Patterns | 0 | 3 | 4 | ⚠️ |
+If custom, ask one follow-up question per selected role:
+- model for `<role>`: default or fast
 
-**Top 3 Action Items:**
-1. 🔴 [SECURITY] SQL injection risk in /api/users.ts line 34
-2. 🔴 [A11Y] Modal missing focus trap in components/Modal.tsx
-3. 🟡 [PRINCIPAL] God component in pages/dashboard.tsx (420 lines)
-```
+Remind user:
+`Default workers inherit the current Cursor model dropdown. Set your preferred primary model before continuing.`
 
-### In File — Inline Comments
-Add inline comments to the audited file(s) using the standard format for each role.
+## Phase 1 - Scope detection
 
-### Markdown Report
-Save full findings to `audit-reports/AUDIT-[YYYY-MM-DD-HHmm].md`:
+- If an active file is clearly provided in context, use that file path as scope.
+- Otherwise use full `src/` directory.
+- Also capture timestamp key `YYYY-MM-DD-HHmm`.
 
-```markdown
-# 🔍 Full Audit Report
-**Date:** [timestamp]
-**File(s):** [audited scope]
-**Model:** [model used]
+## Phase 2 - Build worker plan
 
----
+For each selected role, define:
 
-## Executive Summary
-[summary table]
+- `roleName`
+- `roleFile`
+- `modelTier` (`default` or `fast`)
+- `reportPath`: `audit-reports/AUDIT-[timestamp]-[roleSlug].md`
 
----
+Role slugs:
+- principal
+- security
+- devops
+- a11y
+- patterns
 
-## 🏗️ Principal Engineer Findings
-### 🔴 High
-...
-### 🟡 Medium
-...
+Worker prompt template:
 
-## 🔒 Security Findings
-...
+```text
+You are an audit worker sub-agent.
 
-## ⚙️ DevOps Findings
-...
-
-## ♿ Accessibility Findings
-...
-
-## 🔄 Patterns & DRY Findings
-...
-
----
-
-## Recommended Action Order
-1. [item]
-2. [item]
-...
-
-## Files Requiring Immediate Attention
-- `path/to/file.ts` — [roles with issues]: [brief description]
+Task:
+1) Read the role instruction file: [roleFile]
+2) Follow that role's audit logic against scope: [scope]
+3) Do not edit source files. Do not add inline comments.
+4) Produce findings as markdown and save to: [reportPath]
+5) Return a concise summary in this format:
+   role: [roleName]
+   high: [N]
+   medium: [N]
+   low: [N]
+   report: [reportPath]
 ```
 
-## Behavior Rules
-- Create `audit-reports/` directory if it doesn't exist
-- If auditing a single file, scope all findings to that file
-- If no specific file is active, audit the full `src/` directory
-- Group findings by file when multiple issues exist in the same file
-- A file flagged by multiple roles should appear once with all roles listed
+## Phase 3 - Dry-run behavior
 
-## Recommended Model
-🧠 **Claude Opus** — use this for /audit-all for maximum depth across all roles
+If `--dry-run` is present:
+
+- Do not launch any Task workers.
+- Print a plan preview with:
+  - scope
+  - selected roles
+  - per-role model tier
+  - per-role report path
+  - concurrency batches (max 4 first, remainder queued)
+  - final consolidated report path:
+    `audit-reports/AUDIT-[timestamp]-CONSOLIDATED.md`
+- End with:
+  `No workers were launched. Remove --dry-run to execute.`
+
+## Phase 4 - Execute workers
+
+If not dry-run:
+
+1. Ensure `audit-reports/` exists.
+2. Launch workers in parallel batches with max 4 concurrent.
+3. Wait for all workers to finish.
+4. Collect worker summaries.
+
+## Phase 5 - Consolidate outputs
+
+Create:
+`audit-reports/AUDIT-[timestamp]-CONSOLIDATED.md`
+
+Consolidated report sections:
+
+1. Header (date, scope)
+2. Executive summary table:
+   - Role
+   - High
+   - Medium
+   - Low
+   - Status (clean/warn/critical)
+3. Top action items (up to 5)
+4. Per-role findings (embed or summarize each role report)
+5. Files needing immediate attention (deduplicated)
+6. Model tiers used per role
+7. Worker execution summary (parallel batches and counts)
+
+Also print an in-chat summary table and:
+`Sub-agents spawned: [N] | Reports: [list] | Model tiers: [role=tier,...]`
+
+## Verification checklist
+
+Working correctly indicators:
+
+- Separate role reports exist in `audit-reports/`
+- Consolidated report exists and references all selected roles
+- Worker count equals selected role count
+- For 5 roles, output shows two execution batches due to 4-worker concurrency cap
+
+Failure indicator:
+
+- A single in-chat audit with no role-specific report files usually means workers were not launched.

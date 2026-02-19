@@ -29,7 +29,7 @@ When you type a command like `/audit-security`, Cursor loads that command's prom
 Typical end-to-end flow for audit-driven improvements:
 
 ```text
-/audit-all -> /fix-plan -> /fix-all -> /generate-tests -> /debug-tests
+/audit-all -> /generate-tests -> /fix-plan -> /fix-all -> /debug-tests
 ```
 
 Supporting commands:
@@ -278,8 +278,9 @@ If interruption happened mid-attempt, only completed attempts are guaranteed in 
 
 - Use `/audit-all` for periodic full-project quality gates.
 - Use a single-role audit command when you only need one perspective quickly.
+- Run `/generate-tests` after `/audit-all` so Playwright gates exist before automated bulk fixing.
 - Run `/fix-plan` before any bulk remediation.
 - Prefer `/fix` for high-risk or architectural findings you want to review manually.
-- Use `/fix-all` when you want automated sequential execution with test safety checks.
+- Use `/fix-all` when you want automated sequential execution with meaningful test safety checks.
 - If anything regresses, run `/fix-rollback` first, then re-plan.
 - Keep `/generate-tests` and `/debug-tests` in your regular loop so fixes remain verifiable.

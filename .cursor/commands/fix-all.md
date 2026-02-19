@@ -1,6 +1,6 @@
 ---
 name: fix-all
-description: Execute fix batches sequentially with fresh Task workers per batch, test-after-each-commit, rollback safety, and optional --dry-run preview.
+description: Execute fix batches sequentially with fresh Task workers per batch, test-after-each-commit, rollback safety, and optional --dry-run/--debug preview.
 ---
 
 # Fix All Orchestrator
@@ -19,6 +19,8 @@ Do not implement batch code changes directly in the orchestrator context.
 
 - `/fix-all` -> configure + execute
 - `/fix-all --dry-run` -> configure + validate plan without running worker fixes
+- `/fix-all --debug` -> execute with worker prompt and execution-trace logging
+- `/fix-all --dry-run --debug` -> preview + debug path validation only
 
 ## Input expectations
 
@@ -54,6 +56,7 @@ npx playwright test --list
 ```
 
 If checks fail, stop with actionable message.
+If `e2e/` is missing or `npx playwright test --list` finds no tests, instruct the user to run `/generate-tests` first, then rerun `/fix-all`.
 
 ## Phase 2 - Baseline test gate
 
@@ -75,6 +78,7 @@ If `--dry-run` is present:
 - Print execution preview:
   - selected batches in order
   - per-batch model tier
+  - per-batch debug prompt path and execution path (when `--debug`)
   - post-batch test step
   - failure policy (auto-fix or immediate rollback)
   - expected branch name: `audit-fixes/[date]`
@@ -82,6 +86,10 @@ If `--dry-run` is present:
   `No workers were launched. Remove --dry-run to execute.`
 
 Note: baseline test and prerequisite checks may run in dry-run to validate readiness.
+
+If `--debug` is present (including with dry-run), ensure `.cursor/debug-logs/` exists and define:
+- `debugPromptPath`: `.cursor/debug-logs/[timestamp]-batch-[batchId]-prompt.md`
+- `debugExecutionPath`: `.cursor/debug-logs/[timestamp]-batch-[batchId]-execution.md`
 
 ## Phase 4 - Create execution branch
 
@@ -95,14 +103,16 @@ git checkout -b audit-fixes/$(date +%Y-%m-%d)
 
 For each selected batch, in order:
 
-1. Spawn one fresh Task worker with the batch payload.
-2. Worker reads target file(s), applies only that batch's findings, and returns:
+1. Build worker payload and resolved prompt.
+2. If `--debug`, write resolved prompt to `[debugPromptPath]` and print it in chat.
+3. Spawn one fresh Task worker with the batch payload.
+4. Worker reads target file(s), applies only that batch's findings, and returns:
    - files changed
    - root cause/fix summary
-3. Orchestrator commits worker changes.
-4. Orchestrator runs full Playwright suite.
-5. If tests pass: continue.
-6. If tests fail:
+5. Orchestrator commits worker changes.
+6. Orchestrator runs full Playwright suite.
+7. If tests pass: continue.
+8. If tests fail:
    - if auto-fix enabled: spawn one fresh auto-fix worker for this batch
    - re-run tests
    - if still failing: revert latest batch commit and mark batch skipped
@@ -127,6 +137,15 @@ Rules:
    - filesChanged
    - fixSummary
    - risksToRetest
+
+If debug mode is enabled:
+5) Write an execution trace to: [debugExecutionPath]
+6) Include:
+   - ## Received Context (exact worker prompt)
+   - ## Files Read
+   - ## Edits Applied
+   - ## Validation Notes
+   - ## Final Output
 ```
 
 ## Phase 6 - Final summary
@@ -139,6 +158,7 @@ Print:
 - final test status
 - skipped findings requiring manual follow-up
 - key git commands for review and merge
+- debug log paths produced (when `--debug`)
 
 ## Safety rules
 

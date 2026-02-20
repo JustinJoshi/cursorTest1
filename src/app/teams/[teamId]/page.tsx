@@ -149,7 +149,7 @@ export default function TeamPage({
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-6">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard">
+          <Link href="/dashboard" aria-label="Back to dashboard">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -222,6 +222,7 @@ export default function TeamPage({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 shrink-0"
+                            aria-label="Remove selected file"
                             onClick={() => setFile(null)}
                             disabled={isCreating}
                           >
@@ -292,7 +293,10 @@ export default function TeamPage({
 
           {team.role === "admin" && (
             <Button variant="ghost" size="icon" asChild>
-              <Link href={`/teams/${teamId}/settings`}>
+              <Link
+                href={`/teams/${teamId}/settings`}
+                aria-label="Team settings"
+              >
                 <Settings className="h-4 w-4" />
               </Link>
             </Button>

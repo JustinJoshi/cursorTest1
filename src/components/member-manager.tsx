@@ -262,6 +262,7 @@ export function MemberManager({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
+                          aria-label="Remove member"
                           onClick={() =>
                             handleRemoveMember(member._id)
                           }
@@ -325,6 +326,7 @@ export function MemberManager({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
+                        aria-label="Cancel invite"
                         onClick={() =>
                           handleCancelInvite(invite._id)
                         }

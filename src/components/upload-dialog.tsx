@@ -166,6 +166,7 @@ export function UploadDialog({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
+                  aria-label="Remove selected file"
                   onClick={() => setFile(null)}
                   disabled={isUploading}
                 >

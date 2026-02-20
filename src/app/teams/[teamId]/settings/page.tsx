@@ -90,7 +90,7 @@ export default function TeamSettingsPage({
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-6">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={`/teams/${teamId}`}>
+          <Link href={`/teams/${teamId}`} aria-label="Back to team">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

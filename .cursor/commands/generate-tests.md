@@ -34,15 +34,18 @@ Read the mutations and queries. This tells you what operations actually exist se
 
 ### 4. Audit report (if present)
 ```bash
-ls audit-reports/ | sort | tail -1
+ls -1d audit-reports/AUDIT-*/consolidated/CONSOLIDATED.md | sort | tail -1 || ls audit-reports/ | rg -i consolidated | sort | tail -1
 ```
 Read the most recent audit report. Every finding references a real feature. Use it to ensure tests cover every flow the audit touched — especially security-sensitive ones.
 
 ### 5. Existing tests (if any)
 ```bash
-find . -name "*.spec.ts" -o -name "*.test.ts" | grep -i e2e | head -20
+find e2e -name "audit-*.spec.ts" | sort
+find e2e -name "*.spec.ts" ! -name "audit-*.spec.ts" | sort
 ```
-Don't duplicate tests that already exist and are comprehensive.
+Treat files differently based on naming:
+- `audit-*.spec.ts` are audit-cycle tests. Archive current report, then delete and regenerate these every cycle.
+- Non-audit spec files are baseline tests. Keep and update only when explicitly required; do not duplicate or overwrite by default.
 
 ---
 
@@ -188,6 +191,11 @@ export async function signIn(page: Page) {
 
 ## Phase 4 — Generate test files
 
+Before writing any audit-cycle tests:
+1. Archive the current report (`npm run test:archive`) so previous runs remain viewable.
+2. Delete all existing `e2e/audit-*.spec.ts` files.
+3. Generate new `e2e/audit-*.spec.ts` files from the latest consolidated audit.
+
 Generate one spec file per feature area. For each test follow this structure:
 
 ```typescript
@@ -219,13 +227,13 @@ test.describe('[Feature Area]', () => {
 
 ### Test files to generate (based on discovery):
 
-Generate all of the following spec files populated with real tests based on what you found in Phase 1:
+Generate these as audit-cycle files (all prefixed with `audit-`) based on what you found in Phase 1:
 
-- `e2e/auth.spec.ts` — sign in, sign out, protected routes
-- `e2e/teams.spec.ts` — create team, invite member, team settings, remove member
-- `e2e/documents.spec.ts` — upload, rename, view, download, version history
-- `e2e/security.spec.ts` — auth bypass attempts, direct URL access, download auth
-- `e2e/accessibility.spec.ts` — keyboard navigation basics, skip link, aria-labels present
+- `e2e/audit-accessibility.spec.ts` — map to current A11Y IDs in the latest consolidated audit
+- `e2e/audit-security.spec.ts` — map to current SEC IDs in the latest consolidated audit
+- `e2e/audit-security-roles.spec.ts` — role enforcement and authorization findings
+- `e2e/audit-edge-cases.spec.ts` — validation and edge-case findings
+- `e2e/audit-error-handling.spec.ts` — null/not-found/error-boundary findings
 
 ---
 

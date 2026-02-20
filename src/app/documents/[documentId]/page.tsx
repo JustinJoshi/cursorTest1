@@ -54,7 +54,10 @@ export default function DocumentPage({
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-6">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={`/teams/${document.teamId}`}>
+          <Link
+            href={`/teams/${document.teamId}`}
+            aria-label="Back to team"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

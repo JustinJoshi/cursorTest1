@@ -15,14 +15,14 @@ test.describe('Accessibility', () => {
     await setupClerkTestingToken({ page })
   })
 
-  test('A11Y-01: html element has lang attribute', async ({ page }) => {
+  test('BASE-01: html element has lang attribute', async ({ page }) => {
     await page.goto('/dashboard')
 
     const lang = await page.locator('html').getAttribute('lang')
     expect(lang).toBe('en')
   })
 
-  test('A11Y-02: every page has an h1', async ({ page }) => {
+  test('BASE-02: every page has an h1', async ({ page }) => {
     const routes = ['/dashboard', '/teams/new']
 
     for (const route of routes) {
@@ -33,7 +33,7 @@ test.describe('Accessibility', () => {
     }
   })
 
-  test('A11Y-03: interactive elements are keyboard-focusable', async ({ page }) => {
+  test('BASE-03: interactive elements are keyboard-focusable', async ({ page }) => {
     await page.goto('/dashboard')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
